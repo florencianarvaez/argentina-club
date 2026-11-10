@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { uploadProductImage } from '../services/imageService'
 
 import {
   createProduct,
@@ -34,6 +35,7 @@ export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const [error, setError] = useState('')
@@ -69,6 +71,35 @@ export default function AdminProducts() {
     }))
   }
 
+  async function handleImageUpload(file: File) {
+    if (uploadingImage || saving) return
+
+    setUploadingImage(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const key = await uploadProductImage(file)
+
+      // Asociamos la referencia de S3 al formulario.
+      updateField('imageUrl', key)
+
+      setSuccess(
+        '¡Imagen subida correctamente! Guardá el producto para asociarla definitivamente.'
+      )
+    } catch (err) {
+      console.error(err)
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos subir la imagen.'
+      )
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
   function startEditing(product: Product) {
     setEditingId(product.id)
 
@@ -92,12 +123,13 @@ export default function AdminProducts() {
     setEditingId(null)
     setForm({ ...emptyForm })
     setError('')
+    setSuccess('')
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (saving) return
+    if (saving || uploadingImage) return
 
     if (!form.name.trim()) {
       setError('El nombre del producto es obligatorio.')
@@ -114,10 +146,7 @@ export default function AdminProducts() {
       return
     }
 
-    if (
-      !Number.isInteger(form.stock) ||
-      form.stock < 0
-    ) {
+    if (!Number.isInteger(form.stock) || form.stock < 0) {
       setError('El stock debe ser un número entero positivo o cero.')
       return
     }
@@ -198,7 +227,6 @@ export default function AdminProducts() {
           Administrá el catálogo de Argentina Club.
         </p>
 
-        {/* Mensajes */}
         {error && (
           <div
             role="alert"
@@ -217,7 +245,7 @@ export default function AdminProducts() {
           </div>
         )}
 
-        {/* Formulario */}
+        {/* FORMULARIO */}
         <section className="mt-10 rounded-2xl bg-white p-8 shadow-sm">
           <h2 className="text-2xl font-bold text-sky-900">
             {editingId ? 'Editar producto' : 'Agregar nuevo producto'}
@@ -227,6 +255,7 @@ export default function AdminProducts() {
             onSubmit={(event) => void handleSubmit(event)}
             className="mt-6 grid gap-5 md:grid-cols-2"
           >
+            {/* NOMBRE */}
             <div>
               <label
                 htmlFor="product-name"
@@ -248,6 +277,7 @@ export default function AdminProducts() {
               />
             </div>
 
+            {/* CATEGORÍA */}
             <div>
               <label
                 htmlFor="product-category"
@@ -278,6 +308,7 @@ export default function AdminProducts() {
               </select>
             </div>
 
+            {/* PRECIO */}
             <div>
               <label
                 htmlFor="product-price"
@@ -300,6 +331,7 @@ export default function AdminProducts() {
               />
             </div>
 
+            {/* STOCK */}
             <div>
               <label
                 htmlFor="product-stock"
@@ -322,6 +354,7 @@ export default function AdminProducts() {
               />
             </div>
 
+            {/* DESCRIPCIÓN */}
             <div className="md:col-span-2">
               <label
                 htmlFor="product-description"
@@ -343,30 +376,72 @@ export default function AdminProducts() {
               />
             </div>
 
+            {/* IMAGEN */}
             <div className="md:col-span-2">
               <label
                 htmlFor="product-image"
                 className="mb-2 block font-medium text-gray-700"
               >
-                URL de imagen (opcional)
+                URL o referencia de imagen (opcional)
               </label>
 
               <input
                 id="product-image"
-                type="url"
+                type="text"
                 value={form.imageUrl}
                 onChange={(event) =>
                   updateField('imageUrl', event.target.value)
                 }
                 className="w-full rounded-xl border border-sky-200 px-4 py-3"
-                placeholder="https://..."
+                placeholder="https://... o products/archivo.jpg"
               />
 
-              <p className="mt-2 text-xs text-gray-500">
-                Más adelante conectaremos la subida de imágenes con AWS S3.
-              </p>
+              <div className="mt-5">
+                <label
+                  htmlFor="product-upload"
+                  className="mb-2 block font-medium text-gray-700"
+                >
+                  📸 Subir imagen desde tu computadora
+                </label>
+
+                <input
+                  id="product-upload"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={uploadingImage || saving}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+
+                    if (file) {
+                      void handleImageUpload(file)
+                    }
+
+                    event.target.value = ''
+                  }}
+                  className="w-full rounded-xl border border-sky-200 p-3 disabled:opacity-50"
+                />
+
+                {uploadingImage && (
+                  <p className="mt-2 text-sm text-sky-700">
+                    Subiendo imagen a AWS S3...
+                  </p>
+                )}
+
+                <p className="mt-2 text-xs text-gray-500">
+                  Formatos permitidos: JPG, PNG y WEBP.
+                  Tamaño máximo: 5 MB.
+                </p>
+
+                {form.imageUrl.startsWith('products/') && (
+                  <p className="mt-2 text-sm text-green-700">
+                    ✓ Imagen de AWS S3 seleccionada.
+                    Guardá el producto para asociarla.
+                  </p>
+                )}
+              </div>
             </div>
 
+            {/* PRODUCTO ACTIVO */}
             <div className="flex items-center gap-3 md:col-span-2">
               <input
                 id="product-active"
@@ -386,10 +461,11 @@ export default function AdminProducts() {
               </label>
             </div>
 
+            {/* BOTONES */}
             <div className="flex flex-wrap gap-4 md:col-span-2">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || uploadingImage}
                 className="rounded-xl bg-sky-700 px-8 py-3 font-semibold text-white transition hover:bg-sky-800 disabled:opacity-50"
               >
                 {saving
@@ -403,7 +479,8 @@ export default function AdminProducts() {
                 <button
                   type="button"
                   onClick={cancelEditing}
-                  className="rounded-xl border border-gray-300 px-8 py-3 font-semibold text-gray-700 hover:bg-gray-50"
+                  disabled={saving || uploadingImage}
+                  className="rounded-xl border border-gray-300 px-8 py-3 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 >
                   Cancelar edición
                 </button>
@@ -412,7 +489,7 @@ export default function AdminProducts() {
           </form>
         </section>
 
-        {/* Lista de productos */}
+        {/* LISTA DE PRODUCTOS */}
         <section className="mt-12">
           <h2 className="text-2xl font-bold text-sky-900">
             Productos registrados ({products.length})
@@ -495,7 +572,6 @@ export default function AdminProducts() {
             </div>
           )}
         </section>
-
       </div>
     </main>
   )

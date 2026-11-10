@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { getProductById } from '../services/productService'
+import { getProductImageUrl } from '../services/imageService'
 import { useCart } from '../contexts/CartContext'
 import type { Product } from '../types/product'
 
@@ -14,6 +15,11 @@ export default function ProductDetail() {
   const [error, setError] = useState('')
   const [added, setAdded] = useState(false)
 
+  // URL de visualización de la imagen
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageError, setImageError] = useState(false)
+
+  // Cargar producto desde Firebase
   useEffect(() => {
     let cancelled = false
 
@@ -53,6 +59,42 @@ export default function ProductDetail() {
       cancelled = true
     }
   }, [id])
+
+  // Obtener URL de imagen desde AWS S3 o enlace externo
+  useEffect(() => {
+    let cancelled = false
+
+    setImageUrl('')
+    setImageError(false)
+
+    if (!product?.imageUrl) {
+      return
+    }
+
+    async function loadImage() {
+      if (!product?.imageUrl) return
+
+      try {
+        const url = await getProductImageUrl(product.imageUrl)
+
+        if (!cancelled) {
+          setImageUrl(url)
+        }
+      } catch (err) {
+        console.error('No pudimos cargar la imagen:', err)
+
+        if (!cancelled) {
+          setImageError(true)
+        }
+      }
+    }
+
+    void loadImage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [product])
 
   if (loading) {
     return (
@@ -103,9 +145,11 @@ export default function ProductDetail() {
         ? '🌿'
         : product.category === 'dulces'
           ? '🍫'
-          : product.category === 'kits'
-            ? '🎁'
-            : '🇦🇷'
+          : product.category === 'snacks'
+            ? '🍪'
+            : product.category === 'kits'
+              ? '🎁'
+              : '🇦🇷'
 
   const quantityInCart =
     items.find((item) => item.product.id === product.id)?.quantity ?? 0
@@ -141,18 +185,23 @@ export default function ProductDetail() {
 
         <div className="grid gap-10 overflow-hidden rounded-3xl bg-white shadow-lg md:grid-cols-2">
 
+          {/* Imagen del producto */}
           <div className="flex min-h-96 items-center justify-center bg-sky-100">
-            {product.imageUrl ? (
+
+            {imageUrl && !imageError ? (
               <img
-                src={product.imageUrl}
+                src={imageUrl}
                 alt={product.name}
                 className="h-full max-h-[500px] w-full object-contain p-8"
+                onError={() => setImageError(true)}
               />
             ) : (
               <span className="text-9xl">{emoji}</span>
             )}
+
           </div>
 
+          {/* Información del producto */}
           <div className="flex flex-col justify-center p-8 md:p-12">
 
             <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-sky-700">
@@ -198,6 +247,7 @@ export default function ProductDetail() {
                 className="mt-4 rounded-xl bg-green-50 p-4 text-green-800"
               >
                 ¡Producto agregado correctamente! 💚
+
                 <Link
                   to="/carrito"
                   className="ml-2 font-semibold underline"

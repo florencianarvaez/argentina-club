@@ -1,12 +1,34 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { getProducts } from '../services/productService'
+import { getProductImageUrl } from '../services/imageService'
 import type { Product } from '../types/product'
+
+// Emoji según la categoría del producto
+function getCategoryEmoji(category: string): string {
+  switch (category) {
+    case 'mates':
+      return '🧉'
+    case 'yerbas':
+      return '🌿'
+    case 'dulces':
+      return '🍫'
+    case 'snacks':
+      return '🍪'
+    case 'kits':
+      return '🎁'
+    default:
+      return '🇦🇷'
+  }
+}
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  // Guardamos las URL de visualización de cada imagen.
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
 
   // Estados para búsqueda y filtros
   const [search, setSearch] = useState('')
@@ -29,6 +51,44 @@ export default function Products() {
 
     void loadProducts()
   }, [])
+
+  // Obtener las imágenes de los productos
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadImages() {
+      const urls: Record<string, string> = {}
+
+      await Promise.all(
+        products.map(async (product) => {
+          if (!product.imageUrl) return
+
+          try {
+            const url = await getProductImageUrl(product.imageUrl)
+
+            if (!cancelled) {
+              urls[product.id] = url
+            }
+          } catch (err) {
+            console.error(
+              `No pudimos cargar la imagen de ${product.name}:`,
+              err
+            )
+          }
+        })
+      )
+
+      if (!cancelled) {
+        setImageUrls(urls)
+      }
+    }
+
+    void loadImages()
+
+    return () => {
+      cancelled = true
+    }
+  }, [products])
 
   // Debounce: esperar 300 ms antes de buscar
   useEffect(() => {
@@ -163,25 +223,18 @@ export default function Products() {
                   aria-label={`Ver detalles de ${product.name}`}
                   className="flex h-48 items-center justify-center bg-sky-100 transition hover:bg-sky-200"
                 >
-                  {product.imageUrl ? (
+                  {imageUrls[product.id] ? (
                     <img
-                      src={product.imageUrl}
+                      src={imageUrls[product.id]}
                       alt={product.name}
                       className="h-full w-full object-contain p-4"
+                      onError={(event) => {
+                        event.currentTarget.style.display = 'none'
+                      }}
                     />
                   ) : (
                     <span className="text-6xl">
-                      {product.category === 'mates'
-                        ? '🧉'
-                        : product.category === 'yerbas'
-                          ? '🌿'
-                          : product.category === 'dulces'
-                            ? '🍫'
-                            : product.category === 'snacks'
-                              ? '🍪'
-                              : product.category === 'kits'
-                                ? '🎁'
-                                : '🇦🇷'}
+                      {getCategoryEmoji(product.category)}
                     </span>
                   )}
                 </Link>
