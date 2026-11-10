@@ -68,6 +68,13 @@ export default async function handler(
       throw new Error('Falta la configuración de AWS')
     }
 
+    // Comprobamos que coincida con la región real del bucket.
+    if (region !== 'eu-north-1') {
+      throw new Error(
+        `Región AWS incorrecta: ${region}. Se esperaba eu-north-1.`
+      )
+    }
+
     const extension =
       contentType === 'image/jpeg'
         ? 'jpg'
@@ -77,7 +84,12 @@ export default async function handler(
 
     const key = `products/${randomUUID()}.${extension}`
 
-    const s3 = new S3Client({ region })
+    // Configuramos S3 sin checksums automáticos opcionales.
+    const s3 = new S3Client({
+      region,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
+    })
 
     const command = new PutObjectCommand({
       Bucket: bucket,
@@ -86,7 +98,7 @@ export default async function handler(
     })
 
     const uploadUrl = await getSignedUrl(s3, command, {
-      expiresIn: 60,
+      expiresIn: 300,
     })
 
     return res.status(200).json({
