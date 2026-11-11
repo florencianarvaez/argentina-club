@@ -13,7 +13,7 @@ export interface CartItem {
   quantity: number
 }
 
-type CartAction =
+export type CartAction =
   | { type: 'ADD_ITEM'; product: Product }
   | { type: 'REMOVE_ITEM'; productId: string }
   | { type: 'UPDATE_QUANTITY'; productId: string; quantity: number }
@@ -31,7 +31,7 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
 
-function cartReducer(
+export function cartReducer(
   state: CartItem[],
   action: CartAction
 ): CartItem[] {
@@ -190,3 +190,4 @@ export function useCart() {
 
   return context
 }
+

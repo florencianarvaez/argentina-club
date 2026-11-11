@@ -3,103 +3,73 @@ import {
   doc,
   getDocs,
   query,
-  runTransaction,
-  serverTimestamp,
   where,
+  updateDoc,
 } from 'firebase/firestore'
 
-import type {
-  DocumentSnapshot,
-  DocumentData,
-} from 'firebase/firestore'
+import { auth, db } from './firebase'
 
-import { db } from './firebase'
 import type { CartItem } from '../contexts/CartContext'
-import type { Order } from '../types/order'
+import type { Order, OrderStatus } from '../types/order'
 
+// CREAR UN PEDIDO DESDE EL SERVIDOR
 export async function createOrder(
   userId: string,
   cartItems: CartItem[]
 ): Promise<string> {
-  if (!userId || cartItems.length === 0) {
-    throw new Error('No se puede crear un pedido vacío.')
+  if (!userId) {
+    throw new Error('Debés iniciar sesión para comprar.')
   }
 
-  const orderRef = doc(collection(db, 'orders'))
+  if (cartItems.length === 0) {
+    throw new Error('El carrito está vacío.')
+  }
 
-  await runTransaction(db, async (transaction) => {
-    const productSnapshots: DocumentSnapshot<DocumentData>[] = []
+  const currentUser = auth.currentUser
 
-    // Primero leemos todos los productos.
-    for (const item of cartItems) {
-      const productRef = doc(db, 'products', item.product.id)
-      const snapshot = await transaction.get(productRef)
+  if (!currentUser || currentUser.uid !== userId) {
+    throw new Error(
+      'Tu sesión no es válida. Volvé a iniciar sesión.'
+    )
+  }
 
-      if (!snapshot.exists()) {
-        throw new Error(
-          `El producto ${item.product.name} ya no existe.`
-        )
-      }
+  const token = await currentUser.getIdToken()
 
-      productSnapshots.push(snapshot)
-    }
-
-    let total = 0
-
-    const items = cartItems.map((item, index) => {
-      const data = productSnapshots[index]?.data()
-
-      // Comprobamos que Firebase haya devuelto los datos.
-      if (!data) {
-        throw new Error(
-          `No se pudieron obtener los datos del producto ${item.product.name}.`
-        )
-      }
-
-      if (
-        data.active !== true ||
-        typeof data.stock !== 'number' ||
-        data.stock < item.quantity ||
-        !Number.isInteger(item.quantity) ||
-        item.quantity <= 0 ||
-        typeof data.price !== 'number' ||
-        !Number.isFinite(data.price) ||
-        data.price < 0
-      ) {
-        throw new Error(
-          `El producto ${item.product.name} no está disponible en esa cantidad.`
-        )
-      }
-
-      const subtotal =
-        Math.round(data.price * item.quantity * 100) / 100
-
-      total += subtotal
-
-      return {
-        productId: item.product.id,
-        name: data.name as string,
-        price: data.price as number,
-        quantity: item.quantity,
-        subtotal,
-      }
-    })
-
-    total = Math.round(total * 100) / 100
-
-    // Simulamos la compra sin descontar stock.
-    transaction.set(orderRef, {
-      userId,
-      items,
-      total,
-      status: 'pending',
-      createdAt: serverTimestamp(),
-    })
+  const response = await fetch('/api/create-order', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      items: cartItems.map(({ product, quantity }) => ({
+        productId: product.id,
+        quantity,
+      })),
+    }),
   })
 
-  return orderRef.id
+  const data: {
+    orderId?: string
+    error?: string
+  } = await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ?? 'No pudimos confirmar tu pedido.'
+    )
+  }
+
+  if (!data.orderId) {
+    throw new Error(
+      'El servidor no devolvió el número de pedido.'
+    )
+  }
+
+  return data.orderId
 }
 
+// OBTENER LOS PEDIDOS DE UN CLIENTE
 export async function getUserOrders(
   userId: string
 ): Promise<Order[]> {
@@ -111,14 +81,48 @@ export async function getUserOrders(
   const snapshot = await getDocs(ordersQuery)
 
   return snapshot.docs
-    .map((document) => ({
-      id: document.id,
-      ...document.data(),
-    }) as Order)
+    .map(
+      (document) =>
+        ({
+          id: document.id,
+          ...document.data(),
+        }) as Order
+    )
     .sort(
       (a, b) =>
         (b.createdAt?.toMillis?.() ?? 0) -
         (a.createdAt?.toMillis?.() ?? 0)
     )
+}
+
+// OBTENER TODOS LOS PEDIDOS (ADMINISTRADOR)
+export async function getAllOrders(): Promise<Order[]> {
+  const snapshot = await getDocs(
+    collection(db, 'orders')
+  )
+
+  return snapshot.docs
+    .map(
+      (document) =>
+        ({
+          id: document.id,
+          ...document.data(),
+        }) as Order
+    )
+    .sort(
+      (a, b) =>
+        (b.createdAt?.toMillis?.() ?? 0) -
+        (a.createdAt?.toMillis?.() ?? 0)
+    )
+}
+
+// CAMBIAR EL ESTADO DE UN PEDIDO
+export async function updateOrderStatus(
+  orderId: string,
+  status: OrderStatus
+): Promise<void> {
+  const orderRef = doc(db, 'orders', orderId)
+
+  await updateDoc(orderRef, { status })
 }
 
