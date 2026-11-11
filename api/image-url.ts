@@ -14,7 +14,10 @@ export default async function handler(
 
   const key = req.query.key
 
-  if (typeof key !== 'string' || !/^products\/[a-f0-9-]+\.(jpg|png|webp)$/.test(key)) {
+  if (
+    typeof key !== 'string' ||
+    !/^products\/[a-f0-9-]+\.(jpg|png|webp)$/.test(key)
+  ) {
     return res.status(400).json({
       error: 'Imagen no válida',
     })
@@ -28,7 +31,11 @@ export default async function handler(
       throw new Error('Falta la configuración de AWS')
     }
 
-    const s3 = new S3Client({ region })
+    const s3 = new S3Client({
+      region,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
+    })
 
     const command = new GetObjectCommand({
       Bucket: bucket,
@@ -50,4 +57,3 @@ export default async function handler(
     })
   }
 }
-

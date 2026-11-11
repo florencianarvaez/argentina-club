@@ -11,10 +11,12 @@ interface RequestedItem {
 
 function getFirebaseAdmin() {
   if (!getApps().length) {
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+    const serviceAccount =
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+      process.env.FIREBASE_SERVICE_ACCOUNT
 
     if (!serviceAccount) {
-      throw new Error('Falta configurar FIREBASE_SERVICE_ACCOUNT')
+      throw new Error('Falta configurar Firebase Admin')
     }
 
     initializeApp({
@@ -140,7 +142,8 @@ export default async function handler(
         total += subtotal
       }
 
-      // Todas las lecturas se completan antes de escribir.
+      // Primero se completan todas las lecturas.
+      // Después se actualiza el stock y se registra el pedido.
       for (let index = 0; index < items.length; index++) {
         const product = snapshots[index].data()!
 

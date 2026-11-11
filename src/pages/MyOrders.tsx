@@ -9,6 +9,7 @@ import type { Order, OrderStatus } from '../types/order'
 const statusLabels: Record<OrderStatus, string> = {
   pending: 'Pendiente',
   processing: 'En preparación',
+  completed: 'Completado',
   shipped: 'Enviado',
   delivered: 'Entregado',
   cancelled: 'Cancelado',
@@ -40,6 +41,7 @@ export default function MyOrders() {
 
         if (!cancelled) {
           setOrders(data)
+          setError('')
         }
       } catch (err) {
         console.error(err)
@@ -70,7 +72,7 @@ export default function MyOrders() {
   }
 
   return (
-    <main className="min-h-screen bg-sky-50 px-6 py-12">
+    <main className="min-h-screen bg-sky-50 px-4 py-8 sm:px-6 sm:py-12">
       <div className="mx-auto max-w-5xl">
 
         <Link
@@ -80,7 +82,7 @@ export default function MyOrders() {
           ← Volver al inicio
         </Link>
 
-        <h1 className="mt-8 text-4xl font-bold text-sky-900">
+        <h1 className="mt-8 text-3xl font-bold text-sky-900 sm:text-4xl">
           Mis pedidos 📦
         </h1>
 
@@ -107,7 +109,7 @@ export default function MyOrders() {
         )}
 
         {!error && orders.length === 0 && (
-          <div className="mt-10 rounded-2xl bg-white p-10 text-center shadow-sm">
+          <div className="mt-10 rounded-2xl bg-white p-8 text-center shadow-sm sm:p-10">
             <span className="text-6xl">📦</span>
 
             <h2 className="mt-5 text-2xl font-bold text-sky-900">
@@ -131,19 +133,19 @@ export default function MyOrders() {
           {orders.map((order) => (
             <article
               key={order.id}
-              className="rounded-2xl bg-white p-7 shadow-sm"
+              className="rounded-2xl bg-white p-5 shadow-sm sm:p-7"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">
+                  <p className="break-all text-sm text-gray-500">
                     Pedido #{order.id.slice(0, 8)}
                   </p>
 
                   <p className="mt-2 text-sm text-gray-500">
                     {order.createdAt?.toDate
-                      ? order.createdAt.toDate().toLocaleDateString(
-                          'es-AR'
-                        )
+                      ? order.createdAt
+                          .toDate()
+                          .toLocaleDateString('es-AR')
                       : 'Fecha pendiente'}
                   </p>
                 </div>
@@ -154,6 +156,10 @@ export default function MyOrders() {
               </div>
 
               <div className="mt-6 space-y-3 border-t border-sky-100 pt-5">
+                <h2 className="font-semibold text-sky-900">
+                  Detalle del pedido
+                </h2>
+
                 {order.items.map((item) => (
                   <div
                     key={item.productId}
@@ -163,14 +169,14 @@ export default function MyOrders() {
                       {item.name} × {item.quantity}
                     </span>
 
-                    <span>
+                    <span className="shrink-0">
                       {item.subtotal.toFixed(2)} €
                     </span>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 flex justify-between border-t border-sky-100 pt-5 text-xl font-bold text-sky-900">
+              <div className="mt-6 flex justify-between gap-4 border-t border-sky-100 pt-5 text-lg font-bold text-sky-900 sm:text-xl">
                 <span>Total</span>
                 <span>{order.total.toFixed(2)} €</span>
               </div>

@@ -3,6 +3,7 @@ import type { Timestamp } from 'firebase/firestore'
 export type OrderStatus =
   | 'pending'
   | 'processing'
+  | 'completed'
   | 'shipped'
   | 'delivered'
   | 'cancelled'
