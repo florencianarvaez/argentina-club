@@ -240,7 +240,7 @@ npm run build
 
 El proyecto utiliza Vitest y React Testing Library para verificar el funcionamiento de distintas unidades de la aplicación.
 
-Se implementaron inicialmente **21 pruebas automatizadas**, distribuidas entre:
+Se implementaron inicialmente **26 pruebas automatizadas**, distribuidas entre:
 
 - Operaciones del reducer del carrito.
 - Comportamiento del contexto de autenticación.
